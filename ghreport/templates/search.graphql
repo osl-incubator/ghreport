@@ -1,0 +1,42 @@
+query ($first: Int!)  {
+  search (
+    query: "{{org_repos}} is:{{search_type}} {{status}} {{assignee}} {{author}} {{merged}} {{closed}} {{updated}} {{custom_filter}}",
+    type: ISSUE,
+    first: $first {{after}}
+  ) {
+    edges {
+      node {
+        ... on {{gql_node_type}} {
+          id
+          number
+          url
+          title
+          author { login }  # [search_type=="pr"]
+          assignees(first: 10) { edges { node { login } } } # [search_type=="issue"]
+          createdAt
+          closedAt
+          mergedAt  # [search_type=="pr"]
+          lastEditedAt
+          updatedAt
+          state
+          url
+          labels(first: 10) {
+            nodes {
+              name
+            }
+          }
+          repository {
+            name
+            nameWithOwner
+          }
+        }
+      }
+    }
+    issueCount
+    pageInfo {
+        startCursor
+        hasNextPage
+        endCursor
+    }
+  }
+}

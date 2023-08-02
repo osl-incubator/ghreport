@@ -1,0 +1,8 @@
+name: scicookie
+title: "SciCookie Monthly Report"
+env-file: .env
+repos:
+  - osl-incubator/scicookie
+authors:
+  - xmnlab: Ivan Ogasawara
+output-dir: "/tmp/ghreport"

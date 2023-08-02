@@ -1,0 +1,7 @@
+name: ghreport
+channels:
+  - conda-forge
+dependencies:
+  - python
+  - poetry
+  - shellcheck

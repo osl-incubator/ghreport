@@ -1,0 +1,83 @@
+[tool.poetry]
+name = "ghreport"
+version = "1.0.0"
+description = ""
+authors = ["Ivan Ogasawara <ivan.ogasawara@gmail.com>"]
+license = "MIT"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+aiohttp = "^3.7.1"
+Jinja2 = "^3"
+requests = "^2.23"
+python-dotenv = ">=0.21.1"
+pandas = "^1.4.2"
+pandoc = "^2.1"
+tabulate = "^0.8.9"
+websockets = "^8.1"
+gql = "^3"
+atpublic = "^4.0"
+pyyaml = ">=5.4"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.7.0"
+isort = "^5.10.1"
+pre-commit = "^3"
+ruff = "^0.0.282"
+vulture = "^2.7"
+bandit = "^1.7.5"
+mypy = "^1.4.1"
+makim = "1.8.2"
+pytest = ">=6"
+pdbpp = "^0.10.3"
+
+
+[tool.black]
+line-length = 79
+target-version = ["py38"]
+force-exclude = '''(?x)(
+    docs/*
+  | .*\\.egg-info
+)'''  # TOML's single-quoted strings do not require escaping backslashes
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+targets = "ghreport"
+
+[tool.vulture]
+exclude = ["tests"]
+ignore_decorators = []
+ignore_names = []
+make_whitelist = true
+min_confidence = 80
+paths = ["src/astx"]
+sort_by_size = true
+verbose = false
+
+[tool.ruff]
+line-length = 79
+force-exclude = true
+src = ["ghreport"]
+exclude = [
+  'docs',
+]
+select = [
+  "F",   # pyflakes
+]
+
+[tool.ruff.pydocstyle]
+convention = "numpy"
+
+[tool.mypy]
+no_strict_optional = false
+
+[[tool.mypy.overrides]]
+module = [
+  "pandas",
+  "yaml"
+]
+ignore_missing_imports = true
