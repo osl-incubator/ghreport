@@ -1,7 +1,9 @@
 name: ghreport
 channels:
+  - nodefaults
   - conda-forge
 dependencies:
   - python
   - poetry
   - shellcheck
+  - nodejs >= 18.*
