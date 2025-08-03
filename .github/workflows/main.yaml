@@ -1,41 +1,59 @@
 name: build
 
 on: [push, pull_request]
+env:
+  GITHUB_TOKEN: demo
 
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    concurrency:
-      group: ci-${{ github.ref }}
-      cancel-in-progress: true
 
     defaults:
       run:
         shell: bash -l {0}
 
+    strategy:
+      fail-fast: false
+      matrix:
+        python_version:
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+        os:
+          - "ubuntu"
+
+    concurrency:
+      group: ci-tests-${{ matrix.os }}-${{ matrix.python_version }}-${{ github.ref }}
+      cancel-in-progress: true
+
     steps:
-    - uses: actions/checkout@v3
-    - uses: conda-incubator/setup-miniconda@v2
-      with:
-        miniconda-version: "latest"
-        mamba-version: "1.*"
-        environment-file: conda/dev.yaml
-        channels: conda-forge,nodefaults
-        activate-environment: ghreport
-        use-mamba: true
-        miniforge-variant: Mambaforge
+      - uses: actions/checkout@v4
 
-    - name: Create .env file
-      run: |
-        cd tests
-        envsubst < .env.tpl > .env
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniconda-version: "latest"
+          environment-file: conda/dev.yaml
+          channels: conda-forge,nodefaults
+          activate-environment: ghreport
+          auto-update-conda: true
+          conda-solver: libmamba
+          python-version: "${{ matrix.python_version }}"
 
-    - name: Install dependencies
-      run: poetry install
+      - name: Create .env file
+        run: |
+          cd tests
+          envsubst < .env.tpl > .env
 
-    - name: Run tests
-      run: makim tests.unittest
+      - name: Install deps
+        run: |
+          poetry config virtualenvs.create false
+          poetry check
+          poetry install
 
-    - name: Run style checks
-      run: makim tests.linter
+      - name: Run tests
+        run: makim tests.unit
+
+      - name: Run style checks
+        run: makim tests.linter

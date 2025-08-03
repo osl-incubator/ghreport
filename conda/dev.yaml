@@ -3,7 +3,12 @@ channels:
   - nodefaults
   - conda-forge
 dependencies:
+  - compilers
   - python
   - poetry
   - shellcheck
   - nodejs >= 18.*
+  - pandoc
+  - pip
+  - pip:
+      - pandoc==2.4

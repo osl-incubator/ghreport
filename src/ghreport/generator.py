@@ -1,15 +1,12 @@
-import json
 import os
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Dict, List
 
 import pandas as pd
 
-from dotenv import load_dotenv
 from jinja2 import Template
 
-from ghreport.reader import GHReportReader
 from ghreport.config import Config
 
 
@@ -20,39 +17,40 @@ class GHReportGenerator:
         self.config: Config = config
         self.project_path = str(Path(__file__).absolute().parent)
         self.date_cols = [
-            "created_at",
-            "closed_at",
-            "merged_at",
-            "updated_at",
-            "last_edit_at",
+            'created_at',
+            'closed_at',
+            'merged_at',
+            'updated_at',
+            'last_edit_at',
         ]
 
     def _get_table_name_from_params(self, params: Dict[str, str]) -> str:
-        if "title" in params:
-            return params["title"]
+        if 'title' in params:
+            return params['title']
 
         # repo is required
-        fmt = "{} - {}" if "label" in params else "{}{}"
-        return fmt.format(params.get("repo"), params.get("label", ""))
+        fmt = '{} - {}' if 'label' in params else '{}{}'
+        return fmt.format(params.get('repo'), params.get('label', ''))
 
     def _get_template(self) -> Template:
         template_path = str(
-            Path(self.project_path) / "templates" / "template.md"
+            Path(self.project_path) / 'templates' / 'template.md'
         )
 
         with open(template_path) as f:
             return Template(f.read())
 
-    def _get_output_columns(self) -> list:
+    def _get_output_columns(self) -> list[str]:
         return [
-            "repo_name",
-            "number",
-            "title",
-            "author",
-            "assignees",
-            "labels",
-            "state",
-        ] + self.date_cols
+            'repo_name',
+            'number',
+            'title',
+            'author',
+            'assignees',
+            'labels',
+            'state',
+            *self.date_cols,
+        ]
 
     def _prepare_output_dataframe(self, results: pd.DataFrame) -> pd.DataFrame:
         # date truncate
@@ -64,33 +62,33 @@ class GHReportGenerator:
         # add link to number column
         results.number = results.apply(
             lambda series: (
-                f"""<a href='{series["url"]}'>{series["number"]}</a>"""
+                f"""<a href='{series['url']}'>{series['number']}</a>"""
             ),
             axis=1,
         )
 
         # combine merged and closed for prs
-        results.loc[results.type == "pr", "merged_at"] = results[
-            results.type == "pr"
+        results.loc[results.type == 'pr', 'merged_at'] = results[
+            results.type == 'pr'
         ].apply(
             lambda series: (
-                series["merged_at"]
-                if series["merged_at"]
-                else series["closed_at"]
-                if "Merged" in series["labels_raw"]
+                series['merged_at']
+                if series['merged_at']
+                else series['closed_at']
+                if 'Merged' in series['labels_raw']
                 else None
             ),
             axis=1,
         )
-        results.loc[results.type == "pr", "state"] = results[
-            results.type == "pr"
+        results.loc[results.type == 'pr', 'state'] = results[
+            results.type == 'pr'
         ].apply(
             lambda series: (
-                series["state"]
-                if series["state"] != "CLOSED"
-                else series["closed_at"]
-                if "Merged" not in series["labels_raw"]
-                else "MERGED"
+                series['state']
+                if series['state'] != 'CLOSED'
+                else series['closed_at']
+                if 'Merged' not in series['labels_raw']
+                else 'MERGED'
             ),
             axis=1,
         )
@@ -102,37 +100,37 @@ class GHReportGenerator:
         # Map real name for authors and assignees
         results.author_or_assignees = results.apply(
             lambda series: (
-                series["author_or_assignees"]
-                if series["author_or_assignees"] not in gh_users
-                else gh_users[series["author_or_assignees"]]
+                series['author_or_assignees']
+                if series['author_or_assignees'] not in gh_users
+                else gh_users[series['author_or_assignees']]
             ),
             axis=1,
         )
 
-        results["author"] = results.author_or_assignees
-        results["assignees"] = results.author_or_assignees
+        results['author'] = results.author_or_assignees
+        results['assignees'] = results.author_or_assignees
 
         return results
 
-    def _get_issues_cols(self, output_cols: list) -> list:
+    def _get_issues_cols(self, output_cols: list[str]) -> list[str]:
         # PR's columns
         prs_cols = [
-            "created_at",
-            "merged_at",
-            "updated_at",
-            "last_edit_at",
-            "author",
+            'created_at',
+            'merged_at',
+            'updated_at',
+            'last_edit_at',
+            'author',
         ]
         return [col for col in output_cols if col not in prs_cols]
 
-    def _get_prs_cols(self, output_cols: list) -> list:
+    def _get_prs_cols(self, output_cols: list[str]) -> list[str]:
         # issue's columns
         issues_cols = [
-            "closed_at",
-            "created_at",
-            "updated_at",
-            "last_edit_at",
-            "assignees",
+            'closed_at',
+            'created_at',
+            'updated_at',
+            'last_edit_at',
+            'assignees',
         ]
 
         return [col for col in output_cols if col not in issues_cols]
@@ -143,33 +141,35 @@ class GHReportGenerator:
         end_date = args.end_date
 
         filename = (
-            f"report-{self.config.name}-"
-            f"{start_date.replace('-', '')}-"
-            f"{end_date.replace('-', '')}.{extension}"
+            f'report-{self.config.name}-'
+            f'{start_date.replace("-", "")}-'
+            f'{end_date.replace("-", "")}.{extension}'
         )
         return str(Path(self.config.output_dir) / filename)
 
-    def _create_file(self, tmpl: Template, projects: List[Dict[str, str]]):
+    def _create_file(
+        self, tmpl: Template, projects: list[dict[str, str]]
+    ) -> None:
         args = self.config.args
 
-        filepath = self.get_output_filepath_from_args(extension="md")
+        filepath = self.get_output_filepath_from_args(extension='md')
         dirpath = Path(filepath).parent
 
         os.makedirs(dirpath, exist_ok=True)
 
-        report_title = self.config.title or "Report"
+        report_title = self.config.title or 'Report'
         repos = self.config.repos
         authors = self.config.authors
         start_date = args.start_date
         end_date = args.end_date
 
-        authors_username = [next(iter(author), "") for author in authors]
+        authors_username = [next(iter(author), '') for author in authors]
 
-        with open(filepath, "w") as f:
+        with open(filepath, 'w') as f:
             content = tmpl.render(
                 report_title=report_title,
-                orgs_repos=", ".join(repos),
-                authors=", ".join(authors_username),
+                orgs_repos=', '.join(repos),
+                authors=', '.join(authors_username),
                 start_date=start_date,
                 end_date=end_date,
                 projects=projects,
@@ -191,23 +191,23 @@ class GHReportGenerator:
         for repo in repos:
             df = results[results.org_repo == repo]
 
-            df_prs = df[df.type == "pr"][prs_cols].reset_index(drop=True)
-            df_issues = df[df.type == "issue"][issues_cols].reset_index(
+            df_prs = df[df.type == 'pr'][prs_cols].reset_index(drop=True)
+            df_issues = df[df.type == 'issue'][issues_cols].reset_index(
                 drop=True
             )
 
             projects.append(
                 {
-                    "name": repo.split("/")[1],
-                    "pr_results": (
+                    'name': repo.split('/')[1],
+                    'pr_results': (
                         df_prs.to_markdown(index=False)
                         if not df_prs.empty
-                        else "None"
+                        else 'None'
                     ),
-                    "issue_results": (
+                    'issue_results': (
                         df_issues.to_markdown(index=False)
                         if not df_issues.empty
-                        else "None"
+                        else 'None'
                     ),
                 }
             )

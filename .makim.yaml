@@ -1,7 +1,6 @@
-version: 1.0
 groups:
   default:
-    targets:
+    tasks:
       clean:
         help: remove build artifacts, compiled files, and cache
         run: |
@@ -19,14 +18,14 @@ groups:
           rm -fr .pytest_cache
 
   tests:
-    targets:
+    tasks:
       linter:
         help: run linter tools
         run: |
           pre-commit install
           pre-commit run --all-files
 
-      unittest:
+      unit:
         help: run tests
         args:
           path:
@@ -37,16 +36,23 @@ groups:
             help: Specify parameters to be used for tests
             type: string
             default: "-vv"
-        run: pytest {{ args.path }} {{ args.params }}
+        backend: bash
+        run: |
+          pytest \
+            --cov=ghreport \
+            --cov-fail-under=82 \
+            --cov-report term-missing \
+            --no-cov-on-fail ${{ args.path }} ${{ args.params }}
 
       ci:
         help: run the sames tests executed on CI
-        dependencies:
-          - target: tests.unittest
-          - target: tests.linter
+        hooks:
+          pre-run:
+            - task: tests.unittest
+            - task: tests.linter
 
   docs:
-    targets:
+    tasks:
       build:
         help: build documentation
         run: |
@@ -60,23 +66,23 @@ groups:
     vars:
       app: |
         npx --yes \
-          -p semantic-release \
-          -p conventional-changelog-conventionalcommits \
-          -p "@semantic-release/commit-analyzer" \
-          -p "@semantic-release/release-notes-generator" \
-          -p "@semantic-release/changelog" \
-          -p "@semantic-release/exec" \
-          -p "@semantic-release/github" \
-          -p "@semantic-release/git" \
-          -p "@google/semantic-release-replace-plugin" \
-          semantic-release
+        -p semantic-release \
+        -p conventional-changelog-conventionalcommits@7.0.2 \
+        -p "@semantic-release/commit-analyzer" \
+        -p "@semantic-release/release-notes-generator" \
+        -p "@semantic-release/changelog" \
+        -p "@semantic-release/exec" \
+        -p "@semantic-release/github" \
+        -p "@semantic-release/git" \
+        -p "semantic-release-replace-plugin" \
+        semantic-release
 
-    targets:
+    tasks:
       ci:
         help: run semantic release on CI
-        run: {{ vars.app }} --ci
+        run: ${{ vars.app }} --ci
 
       dry:
         help: run semantic release in dry-run mode
         run: |
-          {{ vars.app }} --dry-run
+          ${{ vars.app }} --dry-run

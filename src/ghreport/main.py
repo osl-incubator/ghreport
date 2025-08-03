@@ -2,13 +2,10 @@
 """
 Read information from Github API using GraphQL GitHubAPI.
 """
-import asyncio
 
-from public import public
-
-from ghreport.report import GHReport
 from ghreport.cli import parse_cli
 from ghreport.config import ArgsCLI
+from ghreport.report import GHReport
 
 
 def main() -> None:
@@ -18,5 +15,5 @@ def main() -> None:
     report.run()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
