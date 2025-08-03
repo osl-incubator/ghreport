@@ -4,7 +4,7 @@ channels:
   - conda-forge
 dependencies:
   - compilers
-  - python <3.13
+  - python
   - poetry
   - shellcheck
   - nodejs >= 18.*

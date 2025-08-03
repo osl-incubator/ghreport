@@ -6,13 +6,25 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    concurrency:
-      group: ci-${{ github.ref }}
-      cancel-in-progress: true
 
     defaults:
       run:
         shell: bash -l {0}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python_version:
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+        os:
+          - "ubuntu"
+
+    concurrency:
+      group: ci-tests-${{ matrix.os }}-${{ matrix.python_version }}-${{ github.ref }}
+      cancel-in-progress: true
 
     steps:
       - uses: actions/checkout@v3
@@ -25,6 +37,7 @@ jobs:
           activate-environment: ghreport
           use-mamba: true
           miniforge-variant: Mambaforge
+          python-version: "${{ matrix.python_version }}"
 
       - name: Create .env file
         run: |
