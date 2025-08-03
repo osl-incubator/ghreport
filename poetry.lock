@@ -2133,20 +2133,6 @@ markupsafe = ">=2.0.1"
 mkdocs = ">=1.1"
 
 [[package]]
-name = "mkdocs-exclude"
-version = "1.0.2"
-description = "A mkdocs plugin that lets you exclude files or trees."
-optional = false
-python-versions = "*"
-groups = ["dev"]
-files = [
-    {file = "mkdocs-exclude-1.0.2.tar.gz", hash = "sha256:ba6fab3c80ddbe3fd31d3e579861fd3124513708271180a5f81846da8c7e2a51"},
-]
-
-[package.dependencies]
-mkdocs = "*"
-
-[[package]]
 name = "mkdocs-get-deps"
 version = "0.2.0"
 description = "MkDocs extension that lists all dependencies according to a mkdocs.yml file"
@@ -4657,4 +4643,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.9,<4"
-content-hash = "c3597773806d27b3f71114b89cf68888d83fa5e47fd8801cdc6c6853c5123772"
+content-hash = "885f67c51c5f0e2ebd2f5a8ecc4a3e1cdd234af7b09be962c5b540bd2d981f60"
