@@ -8,3 +8,5 @@ dependencies:
   - poetry
   - shellcheck
   - nodejs >= 18.*
+  - tk
+  - tcl
