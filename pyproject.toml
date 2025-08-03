@@ -1,83 +1,126 @@
-[tool.poetry]
+[project]
 name = "ghreport"
-version = "1.0.0"
-description = ""
-authors = ["Ivan Ogasawara <ivan.ogasawara@gmail.com>"]
-license = "MIT"
+version = "0.1.0"  # semantic-release
+description = "GitHub Report tool"
+authors = [
+  {name = "Ivan Ogasawara", email = "ivan.ogasawara@gmail.com"}
+]
+license = "BSD 3 Clause"
+repository = "https://github.com/osl-incubator/ghreport"
+homepage = "https://github.com/osl-incubator/ghreport"
+readme = "README.md"
+requires-python = ">=3.9,<4"
+dependencies = [
+  "aiohttp >=3.7.1",
+  "Jinja2 >=3",
+  "requests >=2.23",
+  "python-dotenv >=0.21.1",
+  "pandas >=1.4.2",
+  "pandoc >=2.1",
+  "tabulate >=0.8.9",
+  "websockets >=8.1",
+  "gql >=3",
+  "atpublic >=4.0",
+  "pyyaml >=5.4",
+]
+
+[tool.poetry]
+packages = [
+  {include = "ghreport", from="src"},
+]
+include = [
+  "src/ghreport/py.typed",
+  "src/ghreport/schema.json",
+]
+exclude = [
+  ".git/*",
+  ".env*",
+]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.poetry.dependencies]
-python = "^3.10"
-aiohttp = "^3.7.1"
-Jinja2 = "^3"
-requests = "^2.23"
-python-dotenv = ">=0.21.1"
-pandas = "^1.4.2"
-pandoc = "^2.1"
-tabulate = "^0.8.9"
-websockets = "^8.1"
-gql = "^3"
-atpublic = "^4.0"
-pyyaml = ">=5.4"
+
+[project.scripts]
+"ghreport" = "ghreport.__main__:main"
+
 
 [tool.poetry.group.dev.dependencies]
-black = "^23.7.0"
-isort = "^5.10.1"
-pre-commit = "^3"
-ruff = "^0.0.282"
-vulture = "^2.7"
-bandit = "^1.7.5"
-mypy = "^1.4.1"
-makim = "1.8.2"
-pytest = ">=6"
-pdbpp = "^0.10.3"
+pre-commit = ">=3"
+ruff = ">=0.12.7"
+vulture = ">=2.14"
+bandit = ">=1.8.6"
+mypy = ">=1.17.1"
+makim = "1.27.0"
+pytest = ">=8"
+pytest-cov = ">=4.1.0"
+coverage = ">=7.2.7"
+pdbpp = ">=0.11.7"
+# workaround pip install issues
+multidict = ">=6.6.0"
 
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+]
 
-[tool.black]
-line-length = 79
-target-version = ["py38"]
-force-exclude = '''(?x)(
-    docs/*
-  | .*\\.egg-info
-)'''  # TOML's single-quoted strings do not require escaping backslashes
+[tool.mypy]
+python_version = "3.9"
+check_untyped_defs = true
+strict = true
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+show_error_codes = true
+exclude = ["scripts/"]
 
-[tool.bandit]
-exclude_dirs = ["tests"]
-targets = "ghreport"
-
-[tool.vulture]
-exclude = ["tests"]
-ignore_decorators = []
-ignore_names = []
-make_whitelist = true
-min_confidence = 80
-paths = ["src/astx"]
-sort_by_size = true
-verbose = false
 
 [tool.ruff]
 line-length = 79
 force-exclude = true
-src = ["ghreport"]
+src = ["./src/ghreport", "./tests"]
 exclude = [
-  'docs',
+  "docs",
 ]
-select = [
-  "F",   # pyflakes
-]
+fix = true
 
-[tool.ruff.pydocstyle]
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle
+  "F",   # pyflakes
+  # "D",   # pydocstyle
+  "YTT", # flake8-2020
+  "PL",  # PL
+  "RUF", # Ruff-specific rules
+  "I001", # isort
+  "I002", # isort
+]
+ignore = ["RUF012"]
+
+[tool.ruff.lint.pydocstyle]
 convention = "numpy"
 
-[tool.mypy]
-no_strict_optional = false
+[tool.ruff.lint.isort]
+# Use a single line between direct and from import
+lines-between-types = 1
 
-[[tool.mypy.overrides]]
-module = [
-  "pandas",
-  "yaml"
-]
-ignore_missing_imports = true
+[tool.ruff.format]
+quote-style = "single"
+
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+targets = "src/ghreport/"
+skips = ["B102", "B701", "B507", "B601", "B603", "B105", "B307"]
+
+[tool.vulture]
+exclude = ["tests"]
+ignore_decorators = []
+ignore_names = ["verbose", "dry_run", "skip_hooks"]
+make_whitelist = true
+min_confidence = 80
+paths = ["src/ghreport/"]
+sort_by_size = true
+verbose = false
