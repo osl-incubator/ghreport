@@ -9,4 +9,3 @@ dependencies:
   - shellcheck
   - nodejs >= 18.*
   - tk
-  - tcl
