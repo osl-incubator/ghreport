@@ -8,4 +8,4 @@ dependencies:
   - poetry
   - shellcheck
   - nodejs >= 18.*
-  - tk
+  - pandoc 3.2
