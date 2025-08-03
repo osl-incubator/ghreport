@@ -20,11 +20,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Prepare build deps
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y python3-tk tk
-
       - uses: conda-incubator/setup-miniconda@v3
         with:
           miniconda-version: "latest"
@@ -36,7 +31,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install deps
-        run: poetry install
+        run: |
+          poetry config virtualenvs.create false
+          poetry check
+          poetry install
 
       - name: Run semantic release (for tests)
         if: ${{ github.event_name != 'workflow_dispatch' }}
