@@ -47,16 +47,24 @@ build-backend = "poetry.core.masonry.api"
 
 
 [tool.poetry.group.dev.dependencies]
-pre-commit = ">=3"
-ruff = ">=0.12.7"
-vulture = ">=2.14"
-bandit = ">=1.8.6"
-mypy = ">=1.17.1"
-makim = "1.27.0"
 pytest = ">=8"
-pytest-cov = ">=4.1.0"
-coverage = ">=7.2.7"
-pdbpp = ">=0.11.7"
+pre-commit = ">=3"
+mypy = ">=1"
+pytest-cov = ">=3.0.0"
+mkdocs = ">=1.3"
+mkdocs-exclude = ">=1.0.2"
+mkdocs-jupyter = ">=0.24.7"
+mkdocs-literate-nav = ">=0.4.1"
+mkdocs-macros-plugin = ">=0.6.3"
+mkdocs-material = ">=8"
+mkdocstrings = {version=">=0.19.0", extras=["python"]}
+ruff = ">=0.1.5"
+bandit = ">=1.7.5"
+vulture = ">=2.7"
+jupyterlab = ">=4.1.5"
+nox = ">=2024.3.2"
+nbconvert = ">=7.16.3"
+pymdown-extensions = ">=10.7.1"
 # workaround pip install issues
 multidict = ">=6.6.0"
 
