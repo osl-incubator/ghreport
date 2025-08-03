@@ -9,3 +9,6 @@ dependencies:
   - shellcheck
   - nodejs >= 18.*
   - pandoc
+  - pip
+  - pip:
+      - pandoc==2.4
