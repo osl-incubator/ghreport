@@ -64,7 +64,7 @@ class GHReport:
             return
 
         if not env_file.startswith('/'):
-            # use makim file as reference for the working directory
+            # use ghreport file as reference for the working directory
             # for the .env file
             env_file = str(Path(self.config_file).parent / env_file)
 
@@ -84,6 +84,6 @@ class GHReport:
     def run(self) -> None:
         asyncio.run(self.run_async())
 
-    async def run_async(self):
+    async def run_async(self) -> None:
         data = await self.reader.get_data()
         self.generator.generate(data)

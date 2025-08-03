@@ -40,7 +40,7 @@ class GHReportGenerator:
         with open(template_path) as f:
             return Template(f.read())
 
-    def _get_output_columns(self) -> list:
+    def _get_output_columns(self) -> list[str]:
         return [
             'repo_name',
             'number',
@@ -112,7 +112,7 @@ class GHReportGenerator:
 
         return results
 
-    def _get_issues_cols(self, output_cols: list) -> list:
+    def _get_issues_cols(self, output_cols: list[str]) -> list[str]:
         # PR's columns
         prs_cols = [
             'created_at',
@@ -123,7 +123,7 @@ class GHReportGenerator:
         ]
         return [col for col in output_cols if col not in prs_cols]
 
-    def _get_prs_cols(self, output_cols: list) -> list:
+    def _get_prs_cols(self, output_cols: list[str]) -> list[str]:
         # issue's columns
         issues_cols = [
             'closed_at',
@@ -147,7 +147,9 @@ class GHReportGenerator:
         )
         return str(Path(self.config.output_dir) / filename)
 
-    def _create_file(self, tmpl: Template, projects: List[Dict[str, str]]):
+    def _create_file(
+        self, tmpl: Template, projects: list[dict[str, str]]
+    ) -> None:
         args = self.config.args
 
         filepath = self.get_output_filepath_from_args(extension='md')

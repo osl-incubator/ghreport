@@ -27,7 +27,7 @@ class GitHubGraphQL:
     token: str
     transport: AIOHTTPTransport
 
-    def __init__(self, token):
+    def __init__(self, token: str) -> None:
         self.token = token
         self.transport = AIOHTTPTransport(
             headers={'Authorization': f'bearer {self.token}'},
@@ -66,7 +66,7 @@ class GitHubSearch:
 
     def render_selector_template(
         self, template: str, input_data: Dict[str, str]
-    ):
+    ) -> str:
         re_selector = re.compile(
             """\#\s+\[(["']*\w+["']*)(==)(["']*\w+["']*)\s*\]*"""
         )
@@ -213,7 +213,7 @@ class GitHubSearch:
 
         return result
 
-    def to_dataframe(self, results: List[Dict[str, Any]]):
+    def to_dataframe(self, results: List[Dict[str, Any]]) -> pd.DataFrame:
         data = []
         columns = [
             'id',

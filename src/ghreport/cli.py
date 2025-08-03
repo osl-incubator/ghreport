@@ -10,7 +10,7 @@ from pathlib import Path
 from public import public
 
 
-def get_default_start_date():
+def get_default_start_date() -> date:
     current_date = date.today()
     month_day_limit = 25
     if current_date.day >= month_day_limit:
@@ -24,14 +24,14 @@ def get_default_start_date():
     return start_date_default
 
 
-def get_default_end_date(start_date_default):
+def get_default_end_date(start_date_default: date) -> date:
     return (start_date_default + timedelta(days=32)).replace(
         day=1
     ) - timedelta(days=1)
 
 
 @public
-def parse_cli():
+def parse_cli() -> argparse.ArgumentParser:
     # todo: check if it is necessary
     # load_environment_variables()
 
