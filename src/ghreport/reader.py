@@ -1,17 +1,10 @@
-"""
-Reader class reads data from GitHub using GraphQL.
-
-Note: **dict approach is not working properly with mypy for dataclass:
-  https://github.com/python/mypy/issues/5382
-"""
-
 from __future__ import annotations
 
 import dataclasses
 import re
 
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, cast
 
 import pandas as pd
 
@@ -22,199 +15,162 @@ from public import public
 
 from ghreport.config import ArgsCLI, Config
 
+__all__ = ['GHReportReader']
 
-class GitHubGraphQL:
-    token: str
-    transport: AIOHTTPTransport
 
+class _GitHubClient:
     def __init__(self, token: str) -> None:
-        self.token = token
+        headers = {'Authorization': f'bearer {token}'}
         self.transport = AIOHTTPTransport(
-            headers={'Authorization': f'bearer {self.token}'},
-            url='https://api.github.com/graphql',
+            url='https://api.github.com/graphql', headers=headers
         )
 
 
 @dataclasses.dataclass
 class GitHubSearchFilters:
-    org_repos: List[str] = dataclasses.field(default_factory=list)
-    authors: List[str] = dataclasses.field(default_factory=list)
-    search_type: str = 'pr'  # pr or issue
+    org_repos: List[str]
+    authors: List[str]
+    search_type: str = 'pr'  # "pr" or "issue"
     start_date: str = ''
     end_date: str = ''
-    status: List[str] = dataclasses.field(
-        default_factory=list
-    )  # open, closed, merged
-    # uses start_date and end_date for merged_at filter
+    status: List[str] = dataclasses.field(default_factory=list)
     merged_at: bool = False
-    # uses start_date and end_date for closed_at filter
     closed_at: bool = False
-    # uses start_date and end_date for updated_at filter
     updated_at: bool = False
     custom_filter: Dict[str, str] = dataclasses.field(default_factory=dict)
 
 
-class GitHubSearch:
-    ghgql: GitHubGraphQL
-    template_file: Path
+class _GitHubSearch:
+    _tmpl_path = (
+        Path(__file__).with_suffix('').parent / 'templates' / 'search.graphql'
+    )
+    _selector_re = re.compile(r'#\s*\[(?P<left>[^\]=]+)==(?P<right>[^\]]+)\]')
+    _page_limit: int = 100
 
     def __init__(self, token: str) -> None:
-        self.ghgql = GitHubGraphQL(token)
-        self.template_file = (
-            Path(__file__).parent / 'templates' / 'search.graphql'
-        )
+        self.client = _GitHubClient(token)
+        self._template = Template(self._tmpl_path.read_text(encoding='utf-8'))
 
-    def render_selector_template(
-        self, template: str, input_data: Dict[str, str]
-    ) -> str:
-        re_selector = re.compile(
-            """\#\s+\[(["']*\w+["']*)(==)(["']*\w+["']*)\s*\]*"""
-        )
+    @staticmethod
+    def _conditional_include(line: str, ctx: Dict[str, str]) -> bool:
+        m = _GitHubSearch._selector_re.search(line)
+        if not m:
+            return True
+        left, right = m.group('left').strip(), m.group('right').strip()
+        # both operands expected to be identifiers present in ctx
+        return ctx.get(left, '') == ctx.get(right, '')
 
-        result = template
-        new_result = []
+    def _render_query(self, variables: Dict[str, str]) -> str:
+        raw = self._template.render(**variables)
+        filtered: list[str] = []
+        for line in raw.splitlines():
+            if self._conditional_include(line, variables):
+                filtered.append(line.split('#')[0])
+        return '\n'.join(filtered)
 
-        for k, v in input_data.items():
-            locals()[k] = v
-
-        for line in result.split('\n'):
-            if '#' not in line:
-                new_result.append(line)
-                continue
-
-            re_result = re_selector.findall(line)
-
-            if not re_result:
-                new_result.append(line)
-                continue
-
-            re_result = re_result[0]
-            re_validation = eval(''.join(re_result))
-
-            if not re_validation:
-                continue
-            new_result.append(line[: line.find('#')])
-
-        result = '\n'.join(new_result)
-
-        return result
-
-    async def pagination(self, variables: Dict[str, str]) -> pd.DataFrame:
-        has_next_page = True
-        pagination_after = ''
-        limit = 100
-        results = []
-        has_result = False
-
-        with open(self.template_file, 'r') as f:
-            gql_tmpl = f.read()
-
-        gql_tmpl = self.render_selector_template(gql_tmpl, variables)
-        tmpl = Template(gql_tmpl)
-
+    async def _fetch(
+        self, query_str: str, vars_: Dict[str, Any]
+    ) -> Dict[str, Any]:
         async with Client(
-            transport=self.ghgql.transport,
-            fetch_schema_from_transport=True,
+            transport=self.client.transport, fetch_schema_from_transport=False
         ) as session:
-            while has_next_page:
-                _variables = dict(variables)
-                _variables.update(
-                    after=''
-                    if not pagination_after
-                    else f', after: "{pagination_after}"'
-                )
-
-                gql_stmt = tmpl.render(**_variables)
-
-                query = gql(gql_stmt)
-                params = {'first': limit}
-
-                result = await session.execute(query, variable_values=params)
-
-                try:
-                    page_info = result['search']['pageInfo']
-                    has_next_page = page_info['hasNextPage']
-                    pagination_after = page_info['endCursor']
-                    has_result = True
-                except IndexError:
-                    has_next_page = False
-                    has_result = False
-
-                if not has_result:
-                    break
-
-            results += result['search']['edges']
-
-        return self.to_dataframe(results)
-
-    async def search(
-        self, search_filters: GitHubSearchFilters
-    ) -> pd.DataFrame:
-        # Using `async with` on the client will start a connection on the
-        # transport and provide a `session` variable to execute queries on
-        # this connection
-
-        if search_filters.search_type not in ['pr', 'issue']:
-            raise Exception("search_type should be 'pr' or 'issue'")
-
-        gql_node_type = (
-            'PullRequest' if search_filters.search_type == 'pr' else 'Issue'
-        )
-
-        start_end_period = ''
-
-        if search_filters.start_date and search_filters.end_date:
-            start_end_period = '{{0}}:{0}..{1}'.format(
-                search_filters.start_date, search_filters.end_date
+            query = gql(query_str)
+            return cast(
+                Dict[str, Any],
+                await session.execute(query, variable_values=vars_),
             )
 
-        variables = {
-            'org_repos': ' '.join(
-                [f'repo:{status}' for status in search_filters.org_repos]
-            ),
-            'gql_node_type': gql_node_type,
-            'search_type': search_filters.search_type,
-            'status': ' '.join(
-                [f'is:{status}' for status in search_filters.status]
-            ),
-            'merged': (
-                ''
-                if not search_filters.merged_at
-                else start_end_period.format('merged')
-            ),
-            'closed': (
-                ''
-                if not search_filters.closed_at
-                else start_end_period.format('closed')
-            ),
-            'updated': (
-                ''
-                if not search_filters.updated_at
-                else start_end_period.format('updated')
-            ),
+    async def _paginate(
+        self, variables: Dict[str, str]
+    ) -> List[Dict[str, Any]]:
+        after: str | None = None
+        edges: list[dict[str, Any]] = []
+        while True:
+            page_vars = {
+                **variables,
+                'after': f', after: "{after}"' if after else '',
+            }
+            query_str = self._render_query(page_vars)
+            exec_vars = {'first': self._page_limit}
+            result = await self._fetch(query_str, exec_vars)
+            batch = result.get('search', {}).get('edges', [])
+            edges.extend(batch)
+            info = result.get('search', {}).get('pageInfo', {})
+            if not info.get('hasNextPage'):
+                break
+            after = info.get('endCursor')
+        return edges
+
+    def period(self, fld: str, flt: GitHubSearchFilters) -> str:
+        return f'{fld}:{flt.start_date}..{flt.end_date}'
+
+    async def search(self, flt: GitHubSearchFilters) -> pd.DataFrame:
+        if flt.search_type not in {'pr', 'issue'}:
+            raise ValueError("search_type must be 'pr' or 'issue'")
+
+        node_type = 'PullRequest' if flt.search_type == 'pr' else 'Issue'
+
+        vars_: dict[str, str] = {
+            'org_repos': ' '.join(f'repo:{r}' for r in flt.org_repos),
+            'gql_node_type': node_type,
+            'search_type': flt.search_type,
+            'status': ' '.join(f'is:{s}' for s in flt.status),
+            'merged': self.period('merged', flt) if flt.merged_at else '',
+            'closed': self.period('closed', flt) if flt.closed_at else '',
+            'updated': self.period('updated', flt) if flt.updated_at else '',
             'custom_filter': ' '.join(
-                [f'{k}:{v}' for k, v in search_filters.custom_filter.items()]
+                f'{k}:{v}' for k, v in flt.custom_filter.items()
             ),
+            'author': ' '.join(f'author:{a}' for a in flt.authors)
+            if flt.search_type == 'pr'
+            else '',
+            'assignee': ' '.join(f'assignee:{a}' for a in flt.authors)
+            if flt.search_type == 'issue'
+            else '',
         }
 
-        if search_filters.authors:
-            if search_filters.search_type == 'pr':
-                variables['author'] = ' '.join(
-                    f'author:{author}' for author in search_filters.authors
+        edges = await self._paginate(vars_)
+        df = self._edges_to_df(edges)
+        df['type'] = flt.search_type
+        return df
+
+    @staticmethod
+    def _edges_to_df(edges: List[Dict[str, Any]]) -> pd.DataFrame:
+        rows: list[dict[str, Any]] = []
+        for edge in edges:
+            node = edge.get('node')
+            if not node:
+                continue
+            if node.get('author'):  # PRs
+                author_or_assignees = node['author']['login']
+            else:  # Issues
+                author_or_assignees = ', '.join(
+                    a['node']['login'] for a in node['assignees']['edges']
                 )
-            else:
-                variables['assignee'] = ' '.join(
-                    f'assignee:{assignee}'
-                    for assignee in search_filters.authors
-                )
 
-        result = await self.pagination(variables)
-        result['type'] = search_filters.search_type
-
-        return result
-
-    def to_dataframe(self, results: List[Dict[str, Any]]) -> pd.DataFrame:
-        data = []
+            labels = [
+                lbl['name'].replace('|', '\\|')
+                for lbl in node['labels']['nodes']
+            ]
+            rows.append(
+                {
+                    'id': node['id'],
+                    'org_repo': node['repository']['nameWithOwner'],
+                    'repo_name': node['repository']['name'],
+                    'number': node['number'],
+                    'title': node['title'].replace('|', '\\|'),
+                    'author_or_assignees': author_or_assignees,
+                    'created_at': node['createdAt'],
+                    'closed_at': node['closedAt'],
+                    'merged_at': node.get('mergedAt'),
+                    'updated_at': node['updatedAt'],
+                    'last_edit_at': node['lastEditedAt'],
+                    'labels_raw': ', '.join(labels),
+                    'labels': ', '.join(labels),
+                    'state': node['state'],
+                    'url': node['url'],
+                }
+            )
         columns = [
             'id',
             'org_repo',
@@ -233,150 +189,76 @@ class GitHubSearch:
             'state',
             'url',
         ]
-
-        for node in results:
-            n = node['node']
-
-            if not n:
-                continue
-
-            author_or_assignees = (
-                n['author']['login']
-                if 'author' in n
-                else ', '.join(
-                    [edge['node']['login'] for edge in n['assignees']['edges']]
-                )
-            )
-
-            _labels = [
-                label['name'].replace('|', '\|')
-                for label in n['labels']['nodes']
-            ]
-
-            content = {
-                'id': n['id'],
-                'org_repo': n['repository']['nameWithOwner'],
-                'repo_name': n['repository']['name'],
-                'number': n['number'],
-                # "url": n["url"],
-                'title': n['title'].replace('|', '\|'),
-                'author_or_assignees': author_or_assignees,
-                'created_at': n['createdAt'],
-                'closed_at': n['closedAt'],
-                'merged_at': n['mergedAt']
-                if 'mergedAt' in n
-                else None,  # not available for issues
-                'updated_at': n['updatedAt'],
-                'last_edit_at': n['lastEditedAt'],
-                'labels_raw': ', '.join(_labels),
-                'state': n['state'],
-                'url': n['url'],
-            }
-
-            content['labels'] = content['labels_raw']
-
-            data.append(content)
-
-        return pd.DataFrame(data, columns=columns)
+        return pd.DataFrame(rows, columns=columns)
 
 
 @public
 class GHReportReader:
-    """GHReportReader."""
-
-    config: Config
-
     def __init__(self, config: Config) -> None:
-        self.config: Config = config
+        self.config = config
 
     async def get_data(self) -> pd.DataFrame:
-        """
-        Return all the data used for the report.
-
-        It contain:
-          - open issues updated in a given date period.
-          - open PRs with last edit or update in a given date period.
-          - closed issues in a given date period.
-          - closed issues in a given date period with label Merged
-          - merged issues in a given date period.
-        """
         args: ArgsCLI = self.config.args
+        if not self.config.gh_token:
+            raise RuntimeError('Invalid GitHub token')
+        if not args.start_date or not args.end_date:
+            raise ValueError('start_date and end_date are required')
+        if not self.config.repos:
+            raise ValueError('At least one repository must be specified')
+        if not self.config.authors:
+            raise ValueError('At least one author must be specified')
 
-        results = []
+        base = {
+            'org_repos': self.config.repos,
+            'authors': [next(iter(a), '') for a in self.config.authors],
+            'start_date': args.start_date,
+            'end_date': args.end_date,
+        }
+        searcher = _GitHubSearch(self.config.gh_token)
+        dfs: list[pd.DataFrame] = []
 
-        gh_token = self.config.gh_token
-        if not gh_token:
-            raise Exception('Invalid GitHub token.')
+        dfs.append(
+            await searcher.search(
+                GitHubSearchFilters(
+                    **base,  # type: ignore[arg-type]
+                    search_type='pr',
+                    status=['OPEN'],
+                    custom_filter={
+                        'created': f'<={args.end_date}',
+                        'updated': f'>={args.start_date}',
+                    },
+                )
+            )
+        )
+        dfs.append(
+            await searcher.search(
+                GitHubSearchFilters(
+                    **base,  # type: ignore[arg-type]
+                    search_type='pr',
+                    status=['MERGED'],
+                    merged_at=True,
+                )
+            )
+        )
+        closed_prs = await searcher.search(
+            GitHubSearchFilters(
+                **base,  # type: ignore[arg-type]
+                search_type='pr',
+                status=['CLOSED'],
+                closed_at=True,
+            )
+        )
+        dfs.append(closed_prs[closed_prs.labels_raw.str.contains('Merged')])
 
-        start_date = args.start_date
-        if not start_date:
-            raise Exception('`start_date` was not given.')
-
-        end_date = args.end_date
-        if not end_date:
-            raise Exception('`end_date` was not given.')
-
-        repos: List[str] = self.config.repos
-        if not repos:
-            raise Exception('No repository was given.')
-
-        authors: List[Dict[str, str]] = self.config.authors
-        if not authors:
-            raise Exception('No authors was given.')
-
-        general_params: Dict[
-            str, Union[str, List[str], List[Dict[str, str]]]
-        ] = dict(
-            org_repos=repos,
-            authors=[next(iter(author), '') for author in authors],
-            start_date=start_date,
-            end_date=end_date,
+        dfs.append(
+            await searcher.search(
+                GitHubSearchFilters(
+                    **base,  # type: ignore[arg-type]
+                    search_type='issue',
+                    status=['CLOSED'],
+                    closed_at=True,
+                )
+            )
         )
 
-        gh_searcher = GitHubSearch(gh_token)
-
-        # open PRs with last update in a given date period.
-
-        search_filters = GitHubSearchFilters(
-            search_type='pr',
-            status=['OPEN'],
-            custom_filter={
-                'created': f'<={end_date}',
-                'updated': f'>={start_date}',
-            },
-            **general_params,  # type: ignore
-        )
-        results.append(await gh_searcher.search(search_filters))
-
-        # merged prs in a given date period.
-        search_filters = GitHubSearchFilters(
-            search_type='pr',
-            status=['MERGED'],
-            merged_at=True,
-            **general_params,  # type: ignore
-        )
-        results.append(await gh_searcher.search(search_filters))
-
-        # closed prs in a given date period with label Merged
-
-        search_filters = GitHubSearchFilters(
-            search_type='pr',
-            status=['CLOSED'],
-            closed_at=True,
-            **general_params,  # type: ignore
-        )
-        result = await gh_searcher.search(search_filters)
-        result = result[result.labels_raw.apply(lambda v: 'Merged' in v)]
-        results.append(result)
-
-        # closed issues in a given date period.
-
-        search_filters = GitHubSearchFilters(
-            search_type='issue',
-            status=['CLOSED'],
-            closed_at=True,
-            **general_params,  # type: ignore
-        )
-        results.append(await gh_searcher.search(search_filters))
-
-        return pd.concat(results).reset_index(drop=True)
+        return pd.concat(dfs, ignore_index=True)
