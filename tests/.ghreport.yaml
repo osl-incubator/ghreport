@@ -1,8 +1,11 @@
-name: ghreport
-title: "GHReport Monthly Report"
+name: literev
+title: "LiteRev Monthly Report"
 env-file: .env
 repos:
-  - osl-incubator/ghreport
+  - thegraphnetwork-literev/LiteRev
+  - thegraphnetwork-literev/literev-legal
 authors:
   - xmnlab: Ivan Ogasawara
+  - esloch: Sandro Loch
+  - EverVino: Ever Vino
 output-dir: "/tmp/ghreport"

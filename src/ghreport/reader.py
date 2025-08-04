@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 import re
 
 from pathlib import Path
@@ -16,6 +17,9 @@ from public import public
 from ghreport.config import ArgsCLI, Config
 
 __all__ = ['GHReportReader']
+
+
+logger = logging.getLogger(__name__)
 
 
 class _GitHubClient:
@@ -58,7 +62,7 @@ class _GitHubSearch:
             return True
         left, right = m.group('left').strip(), m.group('right').strip()
         # both operands expected to be identifiers present in ctx
-        return ctx.get(left, '') == ctx.get(right, '')
+        return bool(ctx.get(left, '') == eval(right))
 
     def _render_query(self, variables: dict[str, str]) -> str:
         raw = self._template.render(**variables)
@@ -154,6 +158,11 @@ class _GitHubSearch:
             if node.get('author'):  # PRs
                 author_or_assignees = node['author']['login']
             else:  # Issues
+                if not node.get('assignees'):
+                    # change to log
+                    logger.info('Assignees not available.')
+                    continue
+
                 author_or_assignees = ', '.join(
                     a['node']['login'] for a in node['assignees']['edges']
                 )
