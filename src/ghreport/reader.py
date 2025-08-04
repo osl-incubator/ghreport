@@ -4,7 +4,7 @@ import dataclasses
 import re
 
 from pathlib import Path
-from typing import Any, Dict, List, cast
+from typing import Any, cast
 
 import pandas as pd
 
@@ -28,16 +28,16 @@ class _GitHubClient:
 
 @dataclasses.dataclass
 class GitHubSearchFilters:
-    org_repos: List[str]
-    authors: List[str]
+    org_repos: list[str]
+    authors: list[str]
     search_type: str = 'pr'  # "pr" or "issue"
     start_date: str = ''
     end_date: str = ''
-    status: List[str] = dataclasses.field(default_factory=list)
+    status: list[str] = dataclasses.field(default_factory=list)
     merged_at: bool = False
     closed_at: bool = False
     updated_at: bool = False
-    custom_filter: Dict[str, str] = dataclasses.field(default_factory=dict)
+    custom_filter: dict[str, str] = dataclasses.field(default_factory=dict)
 
 
 class _GitHubSearch:
@@ -52,7 +52,7 @@ class _GitHubSearch:
         self._template = Template(self._tmpl_path.read_text(encoding='utf-8'))
 
     @staticmethod
-    def _conditional_include(line: str, ctx: Dict[str, str]) -> bool:
+    def _conditional_include(line: str, ctx: dict[str, str]) -> bool:
         m = _GitHubSearch._selector_re.search(line)
         if not m:
             return True
@@ -60,7 +60,7 @@ class _GitHubSearch:
         # both operands expected to be identifiers present in ctx
         return ctx.get(left, '') == ctx.get(right, '')
 
-    def _render_query(self, variables: Dict[str, str]) -> str:
+    def _render_query(self, variables: dict[str, str]) -> str:
         raw = self._template.render(**variables)
         filtered: list[str] = []
         for line in raw.splitlines():
@@ -69,20 +69,20 @@ class _GitHubSearch:
         return '\n'.join(filtered)
 
     async def _fetch(
-        self, query_str: str, vars_: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, query_str: str, vars_: dict[str, Any]
+    ) -> dict[str, Any]:
         async with Client(
             transport=self.client.transport, fetch_schema_from_transport=False
         ) as session:
             query = gql(query_str)
             return cast(
-                Dict[str, Any],
+                dict[str, Any],
                 await session.execute(query, variable_values=vars_),
             )
 
     async def _paginate(
-        self, variables: Dict[str, str]
-    ) -> List[Dict[str, Any]]:
+        self, variables: dict[str, str]
+    ) -> list[dict[str, Any]]:
         after: str | None = None
         edges: list[dict[str, Any]] = []
         while True:
@@ -101,7 +101,7 @@ class _GitHubSearch:
             after = info.get('endCursor')
         return edges
 
-    def period(self, fld: str, flt: GitHubSearchFilters) -> str:
+    def _extract_period(self, fld: str, flt: GitHubSearchFilters) -> str:
         return f'{fld}:{flt.start_date}..{flt.end_date}'
 
     async def search(self, flt: GitHubSearchFilters) -> pd.DataFrame:
@@ -115,18 +115,28 @@ class _GitHubSearch:
             'gql_node_type': node_type,
             'search_type': flt.search_type,
             'status': ' '.join(f'is:{s}' for s in flt.status),
-            'merged': self.period('merged', flt) if flt.merged_at else '',
-            'closed': self.period('closed', flt) if flt.closed_at else '',
-            'updated': self.period('updated', flt) if flt.updated_at else '',
+            'merged': (
+                self._extract_period('merged', flt) if flt.merged_at else ''
+            ),
+            'closed': (
+                self._extract_period('closed', flt) if flt.closed_at else ''
+            ),
+            'updated': (
+                self._extract_period('updated', flt) if flt.updated_at else ''
+            ),
             'custom_filter': ' '.join(
                 f'{k}:{v}' for k, v in flt.custom_filter.items()
             ),
-            'author': ' '.join(f'author:{a}' for a in flt.authors)
-            if flt.search_type == 'pr'
-            else '',
-            'assignee': ' '.join(f'assignee:{a}' for a in flt.authors)
-            if flt.search_type == 'issue'
-            else '',
+            'author': (
+                ' '.join(f'author:{a}' for a in flt.authors)
+                if flt.search_type == 'pr'
+                else ''
+            ),
+            'assignee': (
+                ' '.join(f'assignee:{a}' for a in flt.authors)
+                if flt.search_type == 'issue'
+                else ''
+            ),
         }
 
         edges = await self._paginate(vars_)
@@ -135,7 +145,7 @@ class _GitHubSearch:
         return df
 
     @staticmethod
-    def _edges_to_df(edges: List[Dict[str, Any]]) -> pd.DataFrame:
+    def _edges_to_df(edges: list[dict[str, Any]]) -> pd.DataFrame:
         rows: list[dict[str, Any]] = []
         for edge in edges:
             node = edge.get('node')
