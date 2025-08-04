@@ -20,3 +20,19 @@ authors:
   - gh-username-1: GitHub Username 1
 output-dir: "/tmp/ghreport"
 ```
+
+## How to run the ghreport
+
+```bash
+
+ghreport --start-date 2025-07-01 --end-date 2025-07-31 --config-file tests/.ghreport.yaml
+
+```
+
+You can also specify the token in the command line as an argument:
+
+```bash
+
+ghreport --start-date 2025-07-01 --end-date 2025-07-31 --gh-token blabla --config-file tests/.ghreport.yaml
+
+```

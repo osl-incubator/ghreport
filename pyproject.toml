@@ -23,6 +23,7 @@ dependencies = [
   "atpublic >=4.0",
   "pyyaml >=5.4",
   "types-pyyaml (>=6.0.12.20250516,<7.0.0.0)",
+  "typer (>=0.16.0,<0.17.0)",
 ]
 
 [tool.poetry]
