@@ -158,7 +158,6 @@ class _GitHubSearch:
                 author_or_assignees = node['author']['login']
             else:  # Issues
                 if not node.get('assignees'):
-                    # change to log
                     logger.info('Assignees not available.')
                     continue
 
