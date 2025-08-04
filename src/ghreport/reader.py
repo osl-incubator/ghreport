@@ -61,7 +61,6 @@ class _GitHubSearch:
         if not m:
             return True
         left, right = m.group('left').strip(), m.group('right').strip()
-        # both operands expected to be identifiers present in ctx
         return bool(ctx.get(left, '') == eval(right))
 
     def _render_query(self, variables: dict[str, str]) -> str:
