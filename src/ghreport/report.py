@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import io
 import os
@@ -12,74 +14,53 @@ from ghreport.config import ArgsCLI, Config
 from ghreport.generator import GHReportGenerator
 from ghreport.reader import GHReportReader
 
+__all__ = ['GHReport']
+
 
 class GHReport:
-    reader: GHReportReader
-    generator: GHReportGenerator
-    config: Config
-    args: ArgsCLI
+    """CLI entry-point coordinating data retrieval and report generation."""
 
     def __init__(self, args: ArgsCLI) -> None:
-        config_file_default = str(Path(os.getcwd()) / '.ghreport.yaml')
-
-        self.args: ArgsCLI = args
-        self.config_file = args.config_file or config_file_default
-        self.config: Config = self._read_config()
-
-        self._load_token()
+        self.args = args
+        self.config_path = Path(args.config_file or '.ghreport.yaml').resolve()
+        self.config = self._read_config()
+        self.config.gh_token = self._resolve_token()
 
         self.reader = GHReportReader(self.config)
         self.generator = GHReportGenerator(self.config)
 
     def _read_config(self) -> Config:
-        with open(self.config_file, 'r') as f:
-            # escape template tags
-            content = f.read()
-            f_content = io.StringIO(content)
-            config_data = yaml.safe_load(f_content)
+        raw = self.config_path.read_text()
+        cfg_dict = yaml.safe_load(io.StringIO(raw))
+        cfg_dict['args'] = self.args
+        cfg_dict['gh_token'] = ''
+        normalised = {k.replace('-', '_'): v for k, v in cfg_dict.items()}
+        return Config(**normalised)
 
-        config_data['args'] = self.args
-        config_data['gh_token'] = ''
-        return Config(
-            **{k.replace('-', '_'): v for k, v in config_data.items()}
-        )
-
-    def _load_token(self) -> None:
-        gh_token = self.args.gh_token
-        if gh_token:
-            self.config.gh_token = gh_token
-            return
+    def _resolve_token(self) -> str:
+        token = self.args.gh_token
+        if token:
+            return token
 
         env_file = self.config.env_file
-
-        if not env_file:
-            gh_token = os.getenv('GITHUB_TOKEN', '')
-
-            if not gh_token:
-                raise Exception(
-                    '`GITHUB_TOKEN` environment variable not found'
-                )
-
-            self.config.gh_token = gh_token
-            return
-
-        if not env_file.startswith('/'):
-            # use ghreport file as reference for the working directory
-            # for the .env file
-            env_file = str(Path(self.config_file).parent / env_file)
-
-        if not Path(env_file).exists():
-            raise Exception(
-                f'[EE] The given env-file ({env_file}) was not found.'
+        if env_file:
+            env_path = Path(env_file)
+            if not env_path.is_absolute():
+                env_path = self.config_path.parent / env_path
+            if not env_path.exists():
+                raise FileNotFoundError(f'[EE] env-file not found: {env_path}')
+            token = cast(
+                str, dotenv.dotenv_values(env_path).get('GITHUB_TOKEN', '')
             )
+        else:
+            token = os.getenv('GITHUB_TOKEN', '')
 
-        envs = dotenv.dotenv_values(env_file)
-        gh_token = cast(str, envs.get('GITHUB_TOKEN', ''))
-
-        if not gh_token:
-            raise Exception('`GITHUB_TOKEN` environment variable not found')
-
-        self.config.gh_token = gh_token
+        if not token:
+            raise EnvironmentError(
+                '`GITHUB_TOKEN` not provided via CLI, env-file, or environment'
+                ' variable'
+            )
+        return token
 
     def run(self) -> None:
         asyncio.run(self.run_async())
