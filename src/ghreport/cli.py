@@ -1,76 +1,70 @@
-"""
-Read information from Github API using GraphQL GitHubAPI.
-"""
+"""Read information from Github API using GraphQL GitHubAPI."""
 
-import argparse
+from __future__ import annotations
 
 from datetime import date, timedelta
 from pathlib import Path
 
+import typer
+
 from public import public
 
+from ghreport.config import ArgsCLI
+from ghreport.report import GHReport
 
-def get_default_start_date() -> date:
-    current_date = date.today()
-    month_day_limit = 25
-    if current_date.day >= month_day_limit:
-        # If the current day is greater or equal to 25, use the
-        # current month for the report
-        start_date_default = current_date.replace(day=1)
-    else:
-        start_date_default = (
-            current_date.replace(day=1) - timedelta(days=1)
-        ).replace(day=1)
-    return start_date_default
+__all__ = ['app', 'main']
 
 
-def get_default_end_date(start_date_default: date) -> date:
-    return (start_date_default + timedelta(days=32)).replace(
-        day=1
-    ) - timedelta(days=1)
+def _start_default() -> date:
+    start_day_threshold = 25
+    today = date.today()
+    return (
+        today.replace(day=1)
+        if today.day >= start_day_threshold
+        else (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+    )
+
+
+def _end_default(start: date) -> date:
+    return (start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+
+
+start_def = _start_default()
+end_def = _end_default(start_def)
+
+app = typer.Typer(
+    add_help_option=True,
+    help='Generate Markdown reports from GitHub issues and PRs.',
+)
 
 
 @public
-def parse_cli() -> argparse.ArgumentParser:
-    # todo: check if it is necessary
-    # load_environment_variables()
-
-    start_date_default = get_default_start_date()
-    end_date_default = get_default_end_date(start_date_default)
-
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument(
+@app.callback(invoke_without_command=True)
+def main(
+    start_date: str = typer.Option(
+        start_def.strftime('%Y-%m-%d'),
         '--start-date',
-        dest='start_date',
-        action='store',
-        type=str,
-        default=start_date_default.strftime('%Y-%m-%d'),
         help='Specify the start date filter (YYYY-MM-DD).',
-    )
-    parser.add_argument(
+    ),
+    end_date: str = typer.Option(
+        end_def.strftime('%Y-%m-%d'),
         '--end-date',
-        dest='end_date',
-        action='store',
-        type=str,
-        default=end_date_default.strftime('%Y-%m-%d'),
         help='Specify the end date filter (YYYY-MM-DD).',
-    )
-    parser.add_argument(
-        '--gh-token',
-        dest='gh_token',
-        action='store',
-        type=str,
-        default='',
-        help='Specify the GitHub access token.',
-    )
-    parser.add_argument(
+    ),
+    gh_token: str = typer.Option(
+        '', '--gh-token', help='Specify the GitHub access token.'
+    ),
+    config_file: Path = typer.Option(
+        Path('.ghreport.yaml'),
         '--config-file',
-        dest='config_file',
-        action='store',
-        type=str,
-        default=str(Path(__file__).parent / '.ghreport.yaml'),
-        help='Specify the GitHub access token.',
+        help='Path to config file; defaults to ./.ghreport.yaml',
+    ),
+) -> None:
+    """Run the report generation with the provided options."""
+    args = ArgsCLI(
+        start_date=start_date,
+        end_date=end_date,
+        gh_token=gh_token,
+        config_file=str(config_file),
     )
-
-    return parser
+    GHReport(args).run()

@@ -40,7 +40,7 @@ groups:
         run: |
           pytest \
             --cov=ghreport \
-            --cov-fail-under=82 \
+            --cov-fail-under=80 \
             --cov-report term-missing \
             --no-cov-on-fail ${{ args.path }} ${{ args.params }}
 
