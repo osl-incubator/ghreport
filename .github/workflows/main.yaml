@@ -2,7 +2,7 @@ name: build
 
 on: [push, pull_request]
 env:
-  GITHUB_TOKEN: demo
+  GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
   build:

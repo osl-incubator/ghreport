@@ -1,8 +1,8 @@
-name: scicookie
-title: "SciCookie Monthly Report"
+name: ghreport
+title: "GHReport Monthly Report"
 env-file: .env
 repos:
-  - osl-incubator/scicookie
+  - osl-incubator/ghreport
 authors:
   - xmnlab: Ivan Ogasawara
 output-dir: "/tmp/ghreport"

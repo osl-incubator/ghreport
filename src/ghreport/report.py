@@ -55,7 +55,7 @@ class GHReport:
         if not env_file:
             gh_token = os.getenv('GITHUB_TOKEN', '')
 
-            if gh_token:
+            if not gh_token:
                 raise Exception(
                     '`GITHUB_TOKEN` environment variable not found'
                 )
